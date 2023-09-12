@@ -50,7 +50,7 @@ class FamudyViewer(object):
         self.cameras = []
         self.selected_camera = ''
         if update_items:
-            dpg.configure_item("combo_timestep", items=self.timesteps, default_value=self.selected_timestep)
+            # dpg.configure_item("combo_timestep", items=self.timesteps, default_value=self.selected_timestep)
             dpg.configure_item("slider_timestep", default_value=self.selected_timestep_idx, max_value=0, min_value=0)
             dpg.configure_item("combo_filetype", items=self.filetypes, default_value=self.selected_filetype)
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
@@ -94,6 +94,8 @@ class FamudyViewer(object):
                         idx = self.available_subjects.index(self.selected_subject)
                         if idx > 0:
                             self.selected_subject = self.available_subjects[idx-1]
+                        else:
+                            self.selected_subject = self.available_subjects[-1]
                     dpg.set_value("combo_subject", value=self.selected_subject)
                     # dpg.set_value("listbox_subject", value=self.selected_subject)
                     set_subject(None, self.selected_subject)
@@ -106,6 +108,8 @@ class FamudyViewer(object):
                         idx = self.available_subjects.index(self.selected_subject)
                         if idx < len(self.available_subjects)-1:
                             self.selected_subject = self.available_subjects[idx+1]
+                        else:
+                            self.selected_subject = self.available_subjects[0]
                     dpg.set_value("combo_subject", value=self.selected_subject)
                     # dpg.set_value("listbox_subject", value=self.selected_subject)
                     set_subject(None, self.selected_subject)
@@ -140,6 +144,8 @@ class FamudyViewer(object):
                         idx = self.available_sequences.index(self.selected_sequence)
                         if idx > 0:
                             self.selected_sequence = self.available_sequences[idx-1]
+                        else:
+                            self.selected_sequence = self.available_sequences[-1]
                     dpg.set_value("combo_sequence", value=self.selected_sequence)
                     # dpg.set_value("listbox_sequence", value=self.selected_sequence)
                     set_sequence(None, self.selected_sequence)
@@ -152,6 +158,8 @@ class FamudyViewer(object):
                         idx = self.available_sequences.index(self.selected_sequence)
                         if idx < len(self.available_sequences)-1:
                             self.selected_sequence = self.available_sequences[idx+1]
+                        else:
+                            self.selected_sequence = self.available_sequences[0]
                     dpg.set_value("combo_sequence", value=self.selected_sequence)
                     # dpg.set_value("listbox_sequence", value=self.selected_sequence)
                     set_sequence(None, self.selected_sequence)
@@ -224,6 +232,7 @@ class FamudyViewer(object):
             self.selected_timestep_idx = 0
             # dpg.configure_item("combo_timestep", items=self.timesteps, default_value=self.selected_timestep)
             dpg.configure_item("slider_timestep", max_value=len(self.timesteps)-1, default_value=self.selected_timestep_idx)
+            
 
         if update_filetype:
             self.filetypes = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep)
