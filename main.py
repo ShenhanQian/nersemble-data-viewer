@@ -15,6 +15,7 @@ class FamudyViewer(object):
         self.height = height
         self.width_nav = 390
         self.height_nav = 400
+        self.need_update = False
 
         if mode == 'multi-frame':
             self.filter_func = lambda x: x == 'f'
@@ -88,7 +89,7 @@ class FamudyViewer(object):
                     dpg.configure_item("combo_sequence", items=['-'] + self.available_sequences, default_value=self.selected_sequence)
                     # dpg.configure_item("listbox_sequence", items=['-'] + self.available_sequences, default_value=self.selected_sequence)
                     self.update_folder_tree(level='timestep')
-                    self.update_viewer()
+                    self.need_update = True
                 dpg.add_combo(['-'] + self.subjects, default_value=self.selected_subject, label="subject  ", height_mode=dpg.mvComboHeight_Large, callback=set_subject, tag='combo_subject')
                 # dpg.add_listbox(['-'] + self.subjects, label="subject", default_value=self.selected_subject, num_items=5, callback=set_subject, tag='listbox_subject', tracked=True)
                 
@@ -139,7 +140,7 @@ class FamudyViewer(object):
                     dpg.configure_item("combo_subject", items=['-'] + self.available_subjects, default_value=self.selected_subject)
                     # dpg.configure_item("listbox_subject", items=['-'] + self.available_subjects, default_value=self.selected_subject)
                     self.update_folder_tree(level='timestep')
-                    self.update_viewer()
+                    self.need_update = True
                 dpg.add_combo(['-'] + self.sequences, default_value=self.selected_sequence, label="sequence ", height_mode=dpg.mvComboHeight_Large, callback=set_sequence, tag='combo_sequence')
                 # dpg.add_listbox(['-'] + self.sequences, label="sequence", default_value=self.selected_sequence, num_items=5, callback=set_sequence, tag='listbox_sequence', tracked=True)
 
@@ -177,14 +178,14 @@ class FamudyViewer(object):
                 # def set_timestep(sender, data):
                 #     self.selected_timestep = data
                 #     self.update_folder_tree(level='filetype')
-                #     self.update_viewer()
+                    # self.need_update = True
                 # dpg.add_combo([], label="time step", height_mode=dpg.mvComboHeight_Large, callback=set_timestep, tag='combo_timestep')
 
                 def set_timestep_slider(sender, data):
                     self.selected_timestep_idx = data
                     self.selected_timestep = self.timesteps[self.selected_timestep_idx]
                     self.update_folder_tree(level='filetype')
-                    self.update_viewer()
+                    self.need_update = True
                 dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
 
                 def prev_timestep(sender, data):
@@ -214,7 +215,7 @@ class FamudyViewer(object):
             def set_filetype(sender, data):
                 self.selected_filetype = data
                 self.update_folder_tree(level='camera')
-                self.update_viewer()
+                self.need_update = True
             dpg.add_combo([], label="file type", height_mode=dpg.mvComboHeight_Large, callback=set_filetype, tag='combo_filetype')
 
 
@@ -222,7 +223,7 @@ class FamudyViewer(object):
             with dpg.group(horizontal=True):
                 def set_camera(sender, data):
                     self.selected_camera = data
-                    self.update_viewer()
+                    self.need_update = True
                 dpg.add_combo([], label="camera   ", height_mode=dpg.mvComboHeight_Large, callback=set_camera, tag='combo_camera')
 
                 def prev_camera(sender, data):
@@ -283,7 +284,7 @@ class FamudyViewer(object):
         with dpg.texture_registry(show=False):
             dpg.add_raw_texture(width=self.width, height=self.height, default_value=np.zeros([self.height, self.width, 3]), format=dpg.mvFormat_Float_rgb, tag="texture_tag")
         dpg.add_image("texture_tag", tag='image_tag', parent='viewer_tag')
-        self.update_viewer()
+        self.need_update = True
 
     def run(self):
         self.reset_folder_tree(update_items=False)
@@ -295,6 +296,9 @@ class FamudyViewer(object):
                 self.height = dpg.get_viewport_height()
                 self.resize_windows()
 
+            if self.need_update:
+                self.update_viewer()
+                self.need_update = False
             dpg.render_dearpygui_frame()
         dpg.destroy_context()
     
