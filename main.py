@@ -8,11 +8,13 @@ import pandas as pd
 
 
 class FamudyViewer(object):
-    def __init__(self, root_folder: Path, mode: Literal['multi-frame', 'single-frame']='multi-frame', width=1000, height=500):
+    def __init__(self, root_folder: Path, mode: Literal['multi-frame', 'single-frame']='multi-frame', width=1000, height=1000):
         self.root_folder = root_folder
         self.mode = mode
         self.width = width
         self.height = height
+        self.width_nav = 390
+        self.height_nav = 400
 
         if mode == 'multi-frame':
             self.filter_func = lambda x: x == 'f'
@@ -59,13 +61,16 @@ class FamudyViewer(object):
         dpg.create_context()
 
         with dpg.texture_registry(show=False):
-            dpg.add_raw_texture(width=self.width//2, height=self.height, default_value=np.zeros([self.height, self.width//2, 3]), format=dpg.mvFormat_Float_rgb, tag="texture_tag")
+            dpg.add_raw_texture(width=self.width, height=self.height, default_value=np.zeros([self.height, self.width, 3]), format=dpg.mvFormat_Float_rgb, tag="texture_tag")
 
-        with dpg.window(label="Viewer", height=self.height, width=self.width//2, pos=[self.width//2, 0], tag='viewer_tag'):
-            dpg.add_image("texture_tag")
+        # viewer window
+        with dpg.window(label="Viewer", pos=[0, 0], tag='viewer_tag', width=self.width, height=self.height, no_title_bar=True, no_move=True, no_bring_to_front_on_focus=True):
+            dpg.add_image("texture_tag", tag='image_tag', width=self.width, height=self.height)
 
-        with dpg.window(label="Navigator", height=self.height, width=self.width//2, pos=[0, 0]):
+        # navigator window
+        with dpg.window(label="Navigator", tag='navigator_tag', height=self.height_nav, width=self.width_nav, pos=[self.width-self.width_nav-15, 0]):
 
+            # subject switch
             with dpg.group(horizontal=True):
                 def set_subject(sender, data):
                     self.selected_subject = data
@@ -116,6 +121,7 @@ class FamudyViewer(object):
                 dpg.add_button(label="S", callback=next_subject, width=19)
 
 
+            # sequence switch
             with dpg.group(horizontal=True):
                 def set_sequence(sender, data):
                     self.selected_sequence = data
@@ -166,6 +172,7 @@ class FamudyViewer(object):
                 dpg.add_button(label="D", callback=next_sequence, width=19)
 
 
+            # timestep switch
             with dpg.group(horizontal=True):
                 # def set_timestep(sender, data):
                 #     self.selected_timestep = data
@@ -203,6 +210,7 @@ class FamudyViewer(object):
                 dpg.add_button(label="Button", callback=next_timestep, arrow=True, direction=dpg.mvDir_Right)
 
 
+            # filetype switch
             def set_filetype(sender, data):
                 self.selected_filetype = data
                 self.update_folder_tree(level='camera')
@@ -210,6 +218,7 @@ class FamudyViewer(object):
             dpg.add_combo([], label="file type", height_mode=dpg.mvComboHeight_Large, callback=set_filetype, tag='combo_filetype')
 
 
+            # camera switch
             with dpg.group(horizontal=True):
                 def set_camera(sender, data):
                     self.selected_camera = data
@@ -238,8 +247,10 @@ class FamudyViewer(object):
                         set_camera(None, self.selected_camera)
                 dpg.add_button(label="Button", callback=next_camera, arrow=True, direction=dpg.mvDir_Down)
 
-            dpg.add_input_text(label="path", default_value='', tag='text_path', width=325, readonly=True)
+            # path
+            dpg.add_input_text(label="path", default_value='', tag='text_path', readonly=True)
         
+        # key press handlers
         with dpg.handler_registry():
             dpg.add_key_press_handler(dpg.mvKey_W, callback=prev_subject)
             dpg.add_key_press_handler(dpg.mvKey_S, callback=next_subject)
@@ -249,16 +260,42 @@ class FamudyViewer(object):
             dpg.add_key_press_handler(dpg.mvKey_Right, callback=next_timestep)
             dpg.add_key_press_handler(dpg.mvKey_Up, callback=prev_camera)
             dpg.add_key_press_handler(dpg.mvKey_Down, callback=next_camera)
-        
-        dpg.create_viewport(title='Famudy Viewer', width=self.width, height=self.height)
+
+        # theme
+        with dpg.theme() as theme_no_padding:
+            with dpg.theme_component(dpg.mvAll):
+                # set all padding to 0 to avoid scroll bar
+                dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 0, 0, category=dpg.mvThemeCat_Core)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 0, 0, category=dpg.mvThemeCat_Core)
+                dpg.add_theme_style(dpg.mvStyleVar_CellPadding, 0, 0, category=dpg.mvThemeCat_Core)
+        dpg.bind_item_theme("viewer_tag", theme_no_padding)
+
+        dpg.create_viewport(title='Famudy Viewer', width=self.width, height=self.height, resizable=True)
         dpg.setup_dearpygui()
         dpg.show_viewport()
+
+    def resize_windows(self):
+        dpg.configure_item('viewer_tag', width=self.width, height=self.height)
+        dpg.configure_item('navigator_tag', width=self.width_nav, height=self.height_nav, pos=[self.width-self.width_nav-15, 0])
+
+        dpg.delete_item('texture_tag')
+        dpg.delete_item('image_tag')
+        with dpg.texture_registry(show=False):
+            dpg.add_raw_texture(width=self.width, height=self.height, default_value=np.zeros([self.height, self.width, 3]), format=dpg.mvFormat_Float_rgb, tag="texture_tag")
+        dpg.add_image("texture_tag", tag='image_tag', parent='viewer_tag')
+        self.update_viewer()
 
     def run(self):
         self.reset_folder_tree(update_items=False)
         self.define_gui()
 
-        dpg.start_dearpygui()
+        while dpg.is_dearpygui_running():
+            if self.width != dpg.get_viewport_width() or self.height != dpg.get_viewport_height():
+                self.width = dpg.get_viewport_width()
+                self.height = dpg.get_viewport_height()
+                self.resize_windows()
+
+            dpg.render_dearpygui_frame()
         dpg.destroy_context()
     
     def iterdir(self, subject=None, sequence=None, timestep=None, filetype=None):
@@ -304,22 +341,21 @@ class FamudyViewer(object):
     def update_viewer(self, refresh=False):
         if self.selected_sequence != '-' and self.selected_subject != '-':
             path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / self.selected_filetype / self.selected_camera
-            print(f'showing image: {path}')
             img = self.load_image(path)
             dpg.set_value("texture_tag", img)
         else:
-            img = np.zeros([self.height, self.width//2, 3])
+            img = np.zeros([self.height, self.width, 3])
             dpg.set_value("texture_tag", img)
 
     def load_image(self, path):
         dpg.set_value("text_path", path)
         img = Image.open(path)
-        scale = min(self.height / img.size[0], self.width//2 / img.size[1])
-        img = img.resize((int(img.size[0] * scale), int(img.size[1] * scale)))
+        scale = min(self.height / img.height, self.width / img.width)
+        img = img.resize((int(img.width * scale), int(img.height * scale)))
         img = np.asarray(img)
         if img.ndim == 2:
             img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
-        img = np.pad(img, ((0, self.height - img.shape[0]), (0, self.width//2 - img.shape[1]), (0, 0)), mode='constant', constant_values=0)
+        img = np.pad(img, ((0, self.height - img.shape[0]), (0, self.width - img.shape[1]), (0, 0)), mode='constant', constant_values=0)
         return img.astype(np.float32) / 255
 
 
