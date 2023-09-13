@@ -1,0 +1,5 @@
+dearpygui
+numpy
+pillow
+pandas
+tyro

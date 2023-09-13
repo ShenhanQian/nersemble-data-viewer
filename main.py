@@ -1,28 +1,37 @@
 from typing import Literal
-import dearpygui.demo as demo
 import dearpygui.dearpygui as dpg
 from pathlib import Path
 import numpy as np
 from PIL import Image
 import pandas as pd
+import tyro
+from dataclasses import dataclass
 
+
+@dataclass
+class FamudyViewerConfig:
+    root_folder: Path
+    mode: Literal['multi-frame', 'single-frame']='multi-frame'
+    width: int=1000
+    height: int=1000
 
 class FamudyViewer(object):
-    def __init__(self, root_folder: Path, mode: Literal['multi-frame', 'single-frame']='multi-frame', width=1000, height=1000):
-        self.root_folder = root_folder
-        self.mode = mode
-        self.width = width
-        self.height = height
+    def __init__(self, cfg):
+        self.root_folder = cfg.root_folder
+        self.mode = cfg.mode
+        self.width = cfg.width
+        self.height = cfg.height
+
         self.width_nav = 390
         self.height_nav = 400
         self.need_update = False
 
-        if mode == 'multi-frame':
+        if self.mode == 'multi-frame':
             self.filter_func = lambda x: x == 'f'
-        elif mode == 'single-frame':
+        elif self.mode == 'single-frame':
             self.filter_func = lambda x: x == 'o'
         else:
-            raise ValueError(f"Invalid mode: {mode}")
+            raise ValueError(f"Invalid mode: {self.mode}")
         
         # load csv
         csv_path = self.root_folder / 'processing_status_flame.csv'
@@ -69,7 +78,7 @@ class FamudyViewer(object):
             dpg.add_image("texture_tag", tag='image_tag', width=self.width, height=self.height)
 
         # navigator window
-        with dpg.window(label="Navigator", tag='navigator_tag', height=self.height_nav, width=self.width_nav, pos=[self.width-self.width_nav-15, 0]):
+        with dpg.window(label="Navigator", tag='navigator_tag', width=self.width_nav, pos=[self.width-self.width_nav-15, 0], autosize=True):
 
             # subject switch
             with dpg.group(horizontal=True):
@@ -189,7 +198,9 @@ class FamudyViewer(object):
                 dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
 
                 def prev_timestep(sender, data):
-                    if len(self.timesteps) > 0:
+                    if dpg.is_item_focused("text_path"):
+                        return
+                    if len(self.timesteps) > 1:
                         if self.selected_timestep_idx > 0:
                             self.selected_timestep_idx -= 1
                         else:
@@ -200,7 +211,10 @@ class FamudyViewer(object):
                 dpg.add_button(label="Button", callback=prev_timestep, arrow=True, direction=dpg.mvDir_Left)
 
                 def next_timestep(sender, data):
-                    if len(self.timesteps) > 0:
+                    if dpg.is_item_focused("text_path"):
+                        return
+                    print(self.timesteps)
+                    if len(self.timesteps) > 1:
                         if self.selected_timestep_idx < len(self.timesteps)-1:
                             self.selected_timestep_idx += 1
                         else:
@@ -364,5 +378,6 @@ class FamudyViewer(object):
 
 
 if __name__ == '__main__':
-    app = FamudyViewer(Path("R:/cluster/doriath/tkirschstein/data/famudy/full"))
+    cfg = tyro.cli(FamudyViewerConfig)
+    app = FamudyViewer(cfg)
     app.run()
