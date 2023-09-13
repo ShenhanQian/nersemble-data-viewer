@@ -84,7 +84,7 @@ class FamudyViewer(object):
                     # dpg.configure_item("listbox_sequence", items=['-'] + self.available_sequences, default_value=self.selected_sequence)
                     self.update_folder_tree(level='timestep')
                     self.update_viewer()
-                dpg.add_combo(['-'] + self.subjects, default_value=self.selected_subject, label="subject ", height_mode=dpg.mvComboHeight_Large, callback=set_subject, tag='combo_subject')
+                dpg.add_combo(['-'] + self.subjects, default_value=self.selected_subject, label="subject  ", height_mode=dpg.mvComboHeight_Large, callback=set_subject, tag='combo_subject')
                 # dpg.add_listbox(['-'] + self.subjects, label="subject", default_value=self.selected_subject, num_items=5, callback=set_subject, tag='listbox_subject', tracked=True)
                 
                 def prev_subject(sender, data):
@@ -99,7 +99,7 @@ class FamudyViewer(object):
                     dpg.set_value("combo_subject", value=self.selected_subject)
                     # dpg.set_value("listbox_subject", value=self.selected_subject)
                     set_subject(None, self.selected_subject)
-                dpg.add_button(label="Button", callback=prev_subject, arrow=True, direction=dpg.mvDir_Up)
+                dpg.add_button(label="W", callback=prev_subject, width=19)
 
                 def next_subject(sender, data):
                     if self.selected_subject == '-':
@@ -113,7 +113,7 @@ class FamudyViewer(object):
                     dpg.set_value("combo_subject", value=self.selected_subject)
                     # dpg.set_value("listbox_subject", value=self.selected_subject)
                     set_subject(None, self.selected_subject)
-                dpg.add_button(label="Button", callback=next_subject, arrow=True, direction=dpg.mvDir_Down)
+                dpg.add_button(label="S", callback=next_subject, width=19)
 
 
             with dpg.group(horizontal=True):
@@ -134,7 +134,7 @@ class FamudyViewer(object):
                     # dpg.configure_item("listbox_subject", items=['-'] + self.available_subjects, default_value=self.selected_subject)
                     self.update_folder_tree(level='timestep')
                     self.update_viewer()
-                dpg.add_combo(['-'] + self.sequences, default_value=self.selected_sequence, label="sequence", height_mode=dpg.mvComboHeight_Large, callback=set_sequence, tag='combo_sequence')
+                dpg.add_combo(['-'] + self.sequences, default_value=self.selected_sequence, label="sequence ", height_mode=dpg.mvComboHeight_Large, callback=set_sequence, tag='combo_sequence')
                 # dpg.add_listbox(['-'] + self.sequences, label="sequence", default_value=self.selected_sequence, num_items=5, callback=set_sequence, tag='listbox_sequence', tracked=True)
 
                 def prev_sequence(sender, data):
@@ -149,7 +149,7 @@ class FamudyViewer(object):
                     dpg.set_value("combo_sequence", value=self.selected_sequence)
                     # dpg.set_value("listbox_sequence", value=self.selected_sequence)
                     set_sequence(None, self.selected_sequence)
-                dpg.add_button(label="Button", callback=prev_sequence, arrow=True, direction=dpg.mvDir_Up)
+                dpg.add_button(label="A", callback=prev_sequence, width=19)
                 
                 def next_sequence(sender, data):
                     if self.selected_sequence == '-':
@@ -163,21 +163,44 @@ class FamudyViewer(object):
                     dpg.set_value("combo_sequence", value=self.selected_sequence)
                     # dpg.set_value("listbox_sequence", value=self.selected_sequence)
                     set_sequence(None, self.selected_sequence)
-                dpg.add_button(label="Button", callback=next_sequence, arrow=True, direction=dpg.mvDir_Down)
+                dpg.add_button(label="D", callback=next_sequence, width=19)
 
 
-            # def set_timestep(sender, data):
-            #     self.selected_timestep = data
-            #     self.update_folder_tree(level='filetype')
-            #     self.update_viewer()
-            # dpg.add_combo([], label="time step", height_mode=dpg.mvComboHeight_Large, callback=set_timestep, tag='combo_timestep')
+            with dpg.group(horizontal=True):
+                # def set_timestep(sender, data):
+                #     self.selected_timestep = data
+                #     self.update_folder_tree(level='filetype')
+                #     self.update_viewer()
+                # dpg.add_combo([], label="time step", height_mode=dpg.mvComboHeight_Large, callback=set_timestep, tag='combo_timestep')
 
-            def set_timestep_slider(sender, data):
-                self.selected_timestep_idx = data
-                self.selected_timestep = self.timesteps[self.selected_timestep_idx]
-                self.update_folder_tree(level='filetype')
-                self.update_viewer()
-            dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
+                def set_timestep_slider(sender, data):
+                    self.selected_timestep_idx = data
+                    self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                    self.update_folder_tree(level='filetype')
+                    self.update_viewer()
+                dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
+
+                def prev_timestep(sender, data):
+                    if len(self.timesteps) > 0:
+                        if self.selected_timestep_idx > 0:
+                            self.selected_timestep_idx -= 1
+                        else:
+                            self.selected_timestep_idx = len(self.timesteps)-1
+                        self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                        dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
+                        set_timestep_slider(None, self.selected_timestep_idx)
+                dpg.add_button(label="Button", callback=prev_timestep, arrow=True, direction=dpg.mvDir_Left)
+
+                def next_timestep(sender, data):
+                    if len(self.timesteps) > 0:
+                        if self.selected_timestep_idx < len(self.timesteps)-1:
+                            self.selected_timestep_idx += 1
+                        else:
+                            self.selected_timestep_idx = 0
+                        self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                        dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
+                        set_timestep_slider(None, self.selected_timestep_idx)            
+                dpg.add_button(label="Button", callback=next_timestep, arrow=True, direction=dpg.mvDir_Right)
 
 
             def set_filetype(sender, data):
@@ -187,12 +210,45 @@ class FamudyViewer(object):
             dpg.add_combo([], label="file type", height_mode=dpg.mvComboHeight_Large, callback=set_filetype, tag='combo_filetype')
 
 
-            def set_camera(sender, data):
-                self.selected_camera = data
-                self.update_viewer()
-            dpg.add_combo([], label="camera", height_mode=dpg.mvComboHeight_Large, callback=set_camera, tag='combo_camera')
+            with dpg.group(horizontal=True):
+                def set_camera(sender, data):
+                    self.selected_camera = data
+                    self.update_viewer()
+                dpg.add_combo([], label="camera   ", height_mode=dpg.mvComboHeight_Large, callback=set_camera, tag='combo_camera')
+
+                def prev_camera(sender, data):
+                    if len(self.cameras) > 0:
+                        idx = self.cameras.index(self.selected_camera)
+                        if idx > 0:
+                            self.selected_camera = self.cameras[idx-1]
+                        else:
+                            self.selected_camera = self.cameras[-1]
+                        dpg.set_value("combo_camera", value=self.selected_camera)
+                        set_camera(None, self.selected_camera)
+                dpg.add_button(label="", callback=prev_camera, arrow=True, direction=dpg.mvDir_Up)
+
+                def next_camera(sender, data):
+                    if len(self.cameras) > 0:
+                        idx = self.cameras.index(self.selected_camera)
+                        if idx < len(self.cameras)-1:
+                            self.selected_camera = self.cameras[idx+1]
+                        else:
+                            self.selected_camera = self.cameras[0]
+                        dpg.set_value("combo_camera", value=self.selected_camera)
+                        set_camera(None, self.selected_camera)
+                dpg.add_button(label="Button", callback=next_camera, arrow=True, direction=dpg.mvDir_Down)
 
             dpg.add_input_text(label="path", default_value='', tag='text_path', width=325, readonly=True)
+        
+        with dpg.handler_registry():
+            dpg.add_key_press_handler(dpg.mvKey_W, callback=prev_subject)
+            dpg.add_key_press_handler(dpg.mvKey_S, callback=next_subject)
+            dpg.add_key_press_handler(dpg.mvKey_A, callback=next_sequence)
+            dpg.add_key_press_handler(dpg.mvKey_D, callback=prev_sequence)
+            dpg.add_key_press_handler(dpg.mvKey_Left, callback=prev_timestep)
+            dpg.add_key_press_handler(dpg.mvKey_Right, callback=next_timestep)
+            dpg.add_key_press_handler(dpg.mvKey_Up, callback=prev_camera)
+            dpg.add_key_press_handler(dpg.mvKey_Down, callback=next_camera)
         
         dpg.create_viewport(title='Famudy Viewer', width=self.width, height=self.height)
         dpg.setup_dearpygui()
