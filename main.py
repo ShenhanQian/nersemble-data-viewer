@@ -276,8 +276,8 @@ class FamudyViewer(object):
         with dpg.handler_registry():
             dpg.add_key_press_handler(dpg.mvKey_W, callback=prev_subject)
             dpg.add_key_press_handler(dpg.mvKey_S, callback=next_subject)
-            dpg.add_key_press_handler(dpg.mvKey_A, callback=next_sequence)
-            dpg.add_key_press_handler(dpg.mvKey_D, callback=prev_sequence)
+            dpg.add_key_press_handler(dpg.mvKey_A, callback=prev_sequence)
+            dpg.add_key_press_handler(dpg.mvKey_D, callback=next_sequence)
             dpg.add_key_press_handler(dpg.mvKey_Left, callback=prev_timestep)
             dpg.add_key_press_handler(dpg.mvKey_Right, callback=next_timestep)
             dpg.add_key_press_handler(dpg.mvKey_Up, callback=prev_camera)
