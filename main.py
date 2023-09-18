@@ -96,6 +96,7 @@ class FamudyViewer(object):
                                 self.selected_sequence == '-'
 
                     dpg.configure_item("combo_sequence", items=['-'] + self.available_sequences, default_value=self.selected_sequence)
+                    self.check_calibration()
                     self.update_folder_tree(level='timestep')
                     self.need_update = True
                 dpg.add_combo(['-'] + self.subjects, default_value=self.selected_subject, label="subject  ", height_mode=dpg.mvComboHeight_Large, callback=set_subject, tag='combo_subject')
@@ -129,7 +130,8 @@ class FamudyViewer(object):
                     dpg.set_value("combo_subject", value=self.selected_subject)
                     set_subject(None, self.selected_subject)
                 dpg.add_button(label="S", callback=next_subject, width=19)
-
+            
+            dpg.add_text("", tag='text_calibration')
 
             # sequence switch
             with dpg.group(horizontal=True):
@@ -334,6 +336,14 @@ class FamudyViewer(object):
             return [x.name for x in (self.root_folder / subject / 'sequences').iterdir()]
         else:
             raise ValueError("Invalid arguments")
+    
+    def check_calibration(self):
+        no_calibration = False
+        if self.selected_subject != '-':
+            calibration_path = self.root_folder / self.selected_subject / 'calibration'
+            if not calibration_path.exists():
+                no_calibration = True
+        dpg.set_value("text_calibration", value="no calibration" if no_calibration else "")
     
     def update_folder_tree(self, level=Literal['timestep', 'filetype', 'camera']):
         if self.selected_sequence == '-' or self.selected_subject == '-':
