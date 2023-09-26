@@ -294,10 +294,6 @@ class FamudyViewer(object):
                 dpg.add_theme_style(dpg.mvStyleVar_CellPadding, 0, 0, category=dpg.mvThemeCat_Core)
         dpg.bind_item_theme("viewer_tag", theme_no_padding)
 
-        dpg.create_viewport(title='Famudy Viewer', width=self.width, height=self.height, resizable=True)
-        dpg.setup_dearpygui()
-        dpg.show_viewport()
-
     def resize_windows(self):
         dpg.configure_item('viewer_tag', width=self.width, height=self.height)
         dpg.configure_item('navigator_tag', width=self.width_nav, height=self.height_nav, pos=[self.width-self.width_nav-15, 0])
@@ -312,6 +308,9 @@ class FamudyViewer(object):
     def run(self):
         self.reset_folder_tree(update_items=False)
         self.define_gui()
+        dpg.create_viewport(title='Famudy Viewer', width=self.width, height=self.height, resizable=True)
+        dpg.setup_dearpygui()
+        dpg.show_viewport()
 
         while dpg.is_dearpygui_running():
             if self.width != dpg.get_viewport_width() or self.height != dpg.get_viewport_height():
@@ -340,7 +339,7 @@ class FamudyViewer(object):
     def check_calibration(self):
         no_calibration = False
         if self.selected_subject != '-':
-            calibration_path = self.root_folder / self.selected_subject / 'calibration'
+            calibration_path = self.root_folder / self.selected_subject / 'calibration' / 'calibration_result.json'
             if not calibration_path.exists():
                 no_calibration = True
         dpg.set_value("text_calibration", value="no calibration" if no_calibration else "")
