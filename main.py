@@ -1,6 +1,7 @@
 from typing import Literal
 import dearpygui.dearpygui as dpg
 from pathlib import Path
+import glob
 import numpy as np
 from PIL import Image
 import pandas as pd
@@ -39,7 +40,7 @@ class FamudyViewer(object):
         self.subjects = self.data.index.tolist()
         self.subjects = [subject for subject in self.subjects if len(list(filter(self.filter_func, self.data.loc[subject].values))) > 0]
 
-        self.sequences = self.data.columns[1:].tolist()
+        self.sequences = self.data.columns.tolist()
         self.sequences = [sequence for sequence in self.sequences if len(list(filter(self.filter_func, self.data.loc[:, sequence].values))) > 0]
 
         self.reset_subject_sequence(update_items=False)
@@ -189,7 +190,7 @@ class FamudyViewer(object):
                 def set_timestep_slider(sender, data):
                     self.selected_timestep_idx = data
                     self.selected_timestep = self.timesteps[self.selected_timestep_idx]
-                    self.update_folder_tree(level='filetype')
+                    # self.update_folder_tree(level='filetype')
                     self.need_update = True
                 dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
 
@@ -223,7 +224,7 @@ class FamudyViewer(object):
             # filetype switch
             def set_filetype(sender, data):
                 self.selected_filetype = data
-                self.update_folder_tree(level='camera')
+                # self.update_folder_tree(level='camera')
                 self.need_update = True
             dpg.add_combo([], label="file type", height_mode=dpg.mvComboHeight_Large, callback=set_filetype, tag='combo_filetype')
 
@@ -354,7 +355,7 @@ class FamudyViewer(object):
         update_camera = level in ['timestep', 'filetype', 'camera']
 
         if update_time_step:
-            self.timesteps = self.iterdir(self.selected_subject, self.selected_sequence)
+            self.timesteps = sorted(self.iterdir(self.selected_subject, self.selected_sequence))
             self.selected_timestep = self.timesteps[0]
             self.selected_timestep_idx = 0
             dpg.configure_item("slider_timestep", max_value=len(self.timesteps)-1, default_value=self.selected_timestep_idx)
@@ -367,15 +368,17 @@ class FamudyViewer(object):
             dpg.configure_item("combo_filetype", items=self.filetypes, default_value=self.selected_filetype)
 
         if update_camera:
-            self.cameras = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep, self.selected_filetype)
+            self.cameras = [f.split('.')[0] for f in self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep, self.selected_filetype)]
             self.selected_camera = self.cameras[0]
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
 
     def update_viewer(self):
         if self.selected_sequence != '-' and self.selected_subject != '-':
             path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / self.selected_filetype / self.selected_camera
-            img = self.load_image(path)
-            dpg.set_value("texture_tag", img)
+            path = glob.glob(f'{str(path)}*')
+            if len(path) > 0:
+                img = self.load_image(path[0])
+                dpg.set_value("texture_tag", img)
         else:
             img = np.zeros([self.height, self.width, 3])
             dpg.set_value("texture_tag", img)
