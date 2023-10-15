@@ -7,6 +7,31 @@ from PIL import Image
 import pandas as pd
 import tyro
 from dataclasses import dataclass
+import cv2
+import matplotlib.pyplot as plt
+
+
+region2seg_class = {
+    'bg': 0,
+    'skin': 1,
+    'l_brow': 2,
+    'r_brow': 3,
+    'l_eye': 4,
+    'r_eye': 5,
+    'eye_g': 6,
+    'l_ear': 7,
+    'r_ear': 8,
+    'ear_r': 9,
+    'nose': 10,
+    'mouth': 11,
+    'u_lip': 12,
+    'l_lip': 13,
+    'neck': 14,
+    'neck_l': 15,
+    'cloth': 16,
+    'hair': 17,
+    'hat': 18
+}
 
 
 @dataclass
@@ -132,8 +157,6 @@ class FamudyViewer(object):
                     set_subject(None, self.selected_subject)
                 dpg.add_button(label="S", callback=next_subject, width=19)
             
-            dpg.add_text("", tag='text_calibration')
-
             # sequence switch
             with dpg.group(horizontal=True):
                 def set_sequence(sender, data):
@@ -274,6 +297,34 @@ class FamudyViewer(object):
                          "s: single timestep\n"
                          "f: no FLAME param"
                         )
+            
+            dpg.add_text("", tag='text_calibration', color=[255, 0, 0])
+
+            # annotations
+            dpg.add_separator()
+            def set_annotation(sender, data):
+                self.need_update = True
+            with dpg.group(horizontal=True):
+                dpg.add_checkbox(label="landmarks (PIPnet)", callback=set_annotation, tag='checkbox_lmk_pipnet', show=False, default_value=False)
+                dpg.add_checkbox(label="landmarks (FA)    ", callback=set_annotation, tag='checkbox_lmk_fa', show=False, default_value=False)
+            with dpg.group(horizontal=True):
+                dpg.add_checkbox(label="foreground        ", callback=set_annotation, tag='checkbox_fg', show=False, default_value=False)
+                dpg.add_checkbox(label="segmentation      ", callback=set_annotation, tag='checkbox_seg', show=False, default_value=False)
+            
+            with dpg.collapsing_header(label="Filter regions", default_open=False, show=False, tag='collapsing_filter_regions'):
+                def set_region(sender, data):
+                    self.need_update = True
+
+                n_cols = 5
+                n_rows = len(region2seg_class) // n_cols + int((len(region2seg_class) % n_cols) > 0)
+                
+                for i in range(n_rows):
+                    dpg.add_group(tag=f'filter_region_group_{i}', horizontal=True)
+
+                for i, region in enumerate(region2seg_class.keys()):
+                    dpg.add_checkbox(label=f'{region:6s}', callback=set_region, tag=f'checkbox_{region}', show=True, default_value=True, parent=f'filter_region_group_{i // n_cols}')
+
+
         
         # key press handlers
         with dpg.handler_registry():
@@ -345,6 +396,34 @@ class FamudyViewer(object):
                 no_calibration = True
         dpg.set_value("text_calibration", value="no calibration" if no_calibration else "")
     
+    def update_annotations(self):
+        lmk_pipnet = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet'
+        if lmk_pipnet.exists():
+            dpg.configure_item('checkbox_lmk_pipnet', show=True)
+        else:
+            dpg.configure_item('checkbox_lmk_pipnet', show=False)
+
+        lmk_fa = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment'
+        if lmk_fa.exists():
+            dpg.configure_item('checkbox_lmk_fa', show=True)
+        else:
+            dpg.configure_item('checkbox_lmk_fa', show=False)
+        
+        fg = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'alpha_map'
+        if fg.exists():
+            dpg.configure_item('checkbox_fg', show=True)
+        else:
+            dpg.configure_item('checkbox_fg', show=False)
+        
+        seg = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'bisenet_segmentation_masks'
+        if seg.exists():
+            dpg.configure_item('checkbox_seg', show=True)
+            dpg.configure_item('collapsing_filter_regions', show=True)
+        else:
+            dpg.configure_item('checkbox_seg', show=False)
+            dpg.configure_item('collapsing_filter_regions', show=False)
+
+    
     def update_folder_tree(self, level=Literal['timestep', 'filetype', 'camera']):
         if self.selected_sequence == '-' or self.selected_subject == '-':
             self.reset_folder_tree()
@@ -371,27 +450,91 @@ class FamudyViewer(object):
             self.cameras = [f.split('.')[0] for f in self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep, self.selected_filetype)]
             self.selected_camera = self.cameras[0]
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
+        
+        self.update_annotations()
 
     def update_viewer(self):
         if self.selected_sequence != '-' and self.selected_subject != '-':
-            path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / self.selected_filetype / self.selected_camera
-            path = glob.glob(f'{str(path)}*')
-            if len(path) > 0:
-                img = self.load_image(path[0])
-                dpg.set_value("texture_tag", img)
-        else:
-            img = np.zeros([self.height, self.width, 3])
+            
+            path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / self.selected_filetype
+            path = glob.glob(f'{str(path)}/*{self.selected_camera}*')
+            if len(path) == 0:
+                return
+            
+            path = path[0]
+            if 'jpg' not in path.lower() and 'png' not in path.lower():
+                return
+            
+            if self.selected_filetype == 'bisenet_segmentation_masks':
+                # load as uint8 and get float32 after applying colormap
+                img = self.load_image(path, Image.NEAREST)
+                cm = plt.get_cmap('tab20c')
+                img = cm(img[:, :, 0])[:, :, :3].astype(np.float32)
+            else:
+                # directly load as float32
+                img = self.load_image(path)
+                img = img.astype(np.float32) / 255
+
+            if dpg.get_item_configuration("checkbox_lmk_pipnet")['show'] and dpg.get_value("checkbox_lmk_pipnet"):
+                npy_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
+                lmk_pipnet = np.load(npy_path)
+
+                for lmk in lmk_pipnet[self.selected_timestep_idx]:
+                    x = int(lmk[0] * img.shape[1])
+                    y = int(lmk[1] * img.shape[0])
+                    cv2.circle(img, (x, y), 2, (0, 255, 0), -1)
+            
+            if dpg.get_item_configuration("checkbox_lmk_fa")['show'] and dpg.get_value("checkbox_lmk_fa"):
+                npz_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment' / f"{self.selected_camera}.npz"
+                npz = np.load(npz_path)
+                lmk_fa = npz['face_landmark_2d']
+                bbox_fa = npz['bounding_box']
+
+                for lmk in lmk_fa[self.selected_timestep_idx]:
+                    x = int(lmk[0] * img.shape[1])
+                    y = int(lmk[1] * img.shape[0])
+                    cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+
+                    x1, y1, x2, y2 = bbox_fa[self.selected_timestep_idx][:4]
+                    x1 = int(x1 * img.shape[1])
+                    y1 = int(y1 * img.shape[0])
+                    x2 = int(x2 * img.shape[1])
+                    y2 = int(y2 * img.shape[0])
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 1)
+            
+            if dpg.get_item_configuration("checkbox_fg")['show'] and dpg.get_value("checkbox_fg"):
+                fg_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'alpha_map' / f'{self.selected_camera}.png'
+                fg_alpha = self.load_image(fg_path).astype(np.float32)[..., :3] / 255
+                img = img * (fg_alpha) + np.ones_like(img) * (1 - fg_alpha)
+            
+            if dpg.get_item_configuration("checkbox_seg")['show'] and dpg.get_value("checkbox_seg"):
+                seg_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'bisenet_segmentation_masks' / f'segmentation_{self.selected_camera}.png'
+                seg = self.load_image(seg_path, Image.NEAREST)
+                cm = plt.get_cmap('tab20c')
+                seg = cm(seg[:, :, 0])[:, :, :3].astype(np.float32)
+                img = img * 0.5 + seg * 0.5
+            
+            if dpg.get_item_configuration("collapsing_filter_regions")['show']:
+                seg_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'bisenet_segmentation_masks' / f'segmentation_{self.selected_camera}.png'
+                seg = self.load_image(seg_path, Image.NEAREST)
+                for region, seg_class in region2seg_class.items():
+                    if not dpg.get_value(f"checkbox_{region}"):
+                        mask = np.ones_like(img)
+                        mask[seg == seg_class] = 0
+                        img = img * mask + np.ones_like(img) * (1 - mask)
+            
+            img = np.pad(img, ((0, self.height - img.shape[0]), (0, self.width - img.shape[1]), (0, 0)), mode='constant', constant_values=0)
+
             dpg.set_value("texture_tag", img)
 
-    def load_image(self, path):
+    def load_image(self, path, resample=Image.BILINEAR):
         img = Image.open(path)
         scale = min(self.height / img.height, self.width / img.width)
-        img = img.resize((int(img.width * scale), int(img.height * scale)))
+        img = img.resize((int(img.width * scale), int(img.height * scale)), resample)
         img = np.asarray(img)
         if img.ndim == 2:
             img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
-        img = np.pad(img, ((0, self.height - img.shape[0]), (0, self.width - img.shape[1]), (0, 0)), mode='constant', constant_values=0)
-        return img.astype(np.float32) / 255
+        return img
 
 
 if __name__ == '__main__':
