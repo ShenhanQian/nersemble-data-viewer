@@ -213,7 +213,7 @@ class FamudyViewer(object):
                 def set_timestep_slider(sender, data):
                     self.selected_timestep_idx = data
                     self.selected_timestep = self.timesteps[self.selected_timestep_idx]
-                    # self.update_folder_tree(level='filetype')
+                    self.update_folder_tree(level='filetype')
                     self.need_update = True
                 dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
 
@@ -223,8 +223,6 @@ class FamudyViewer(object):
                     if len(self.timesteps) > 1:
                         if self.selected_timestep_idx > 0:
                             self.selected_timestep_idx -= 1
-                        else:
-                            self.selected_timestep_idx = len(self.timesteps)-1
                         self.selected_timestep = self.timesteps[self.selected_timestep_idx]
                         dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
                         set_timestep_slider(None, self.selected_timestep_idx)
@@ -236,18 +234,29 @@ class FamudyViewer(object):
                     if len(self.timesteps) > 1:
                         if self.selected_timestep_idx < len(self.timesteps)-1:
                             self.selected_timestep_idx += 1
-                        else:
-                            self.selected_timestep_idx = 0
                         self.selected_timestep = self.timesteps[self.selected_timestep_idx]
                         dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
                         set_timestep_slider(None, self.selected_timestep_idx)            
                 dpg.add_button(label="Button", callback=next_timestep, arrow=True, direction=dpg.mvDir_Right)
 
+                def set_timestep(sender, data):
+                    if dpg.is_item_focused("text_mode"):
+                        return
+                    
+                    if sender == 'mvKey_Home':
+                        self.selected_timestep_idx = 0
+                    elif sender == 'mvKey_End':
+                        if len(self.timesteps) > 0:
+                            self.selected_timestep_idx = len(self.timesteps)-1
+                    self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                    dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
+                    set_timestep_slider(None, self.selected_timestep_idx)       
+
 
             # filetype switch
             def set_filetype(sender, data):
                 self.selected_filetype = data
-                # self.update_folder_tree(level='camera')
+                self.update_folder_tree(level='camera')
                 self.need_update = True
             dpg.add_combo([], label="file type", height_mode=dpg.mvComboHeight_Large, callback=set_filetype, tag='combo_filetype')
 
@@ -336,6 +345,8 @@ class FamudyViewer(object):
             dpg.add_key_press_handler(dpg.mvKey_Right, callback=next_timestep)
             dpg.add_key_press_handler(dpg.mvKey_Up, callback=prev_camera)
             dpg.add_key_press_handler(dpg.mvKey_Down, callback=next_camera)
+            dpg.add_key_press_handler(dpg.mvKey_Home, callback=set_timestep, tag='mvKey_Home')
+            dpg.add_key_press_handler(dpg.mvKey_End, callback=set_timestep, tag='mvKey_End')
 
         # theme
         with dpg.theme() as theme_no_padding:
@@ -435,20 +446,22 @@ class FamudyViewer(object):
 
         if update_time_step:
             self.timesteps = sorted(self.iterdir(self.selected_subject, self.selected_sequence))
-            self.selected_timestep = self.timesteps[0]
-            self.selected_timestep_idx = 0
+            if self.selected_timestep not in self.timesteps:
+                self.selected_timestep = self.timesteps[0]
+            self.selected_timestep_idx = self.timesteps.index(self.selected_timestep)
             dpg.configure_item("slider_timestep", max_value=len(self.timesteps)-1, default_value=self.selected_timestep_idx)
-            
 
         if update_filetype:
             self.filetypes = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep)
             self.filetypes_images = sorted([x for x in self.filetypes if 'image' in x], reverse=True)
-            self.selected_filetype = self.filetypes_images[0] if len(self.filetypes_images) > 0 else self.filetypes[0]
+            if self.selected_filetype not in self.filetypes:
+                self.selected_filetype = self.filetypes_images[0] if len(self.filetypes_images) > 0 else self.filetypes[0]
             dpg.configure_item("combo_filetype", items=self.filetypes, default_value=self.selected_filetype)
 
         if update_camera:
             self.cameras = [f.split('.')[0] for f in self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep, self.selected_filetype)]
-            self.selected_camera = self.cameras[0]
+            if self.selected_camera not in self.cameras:
+                self.selected_camera = self.cameras[0]
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
         
         self.update_annotations()
