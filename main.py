@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 import dearpygui.dearpygui as dpg
 from pathlib import Path
 import glob
@@ -37,7 +37,7 @@ region2seg_class = {
 @dataclass
 class FamudyViewerConfig:
     root_folder: Path
-    mode: str='x'
+    mode: str='XoS'
     width: int=1000
     height: int=1000
 
@@ -52,7 +52,7 @@ class FamudyViewer(object):
         self.height_nav = 400
         self.need_update = False
 
-        self.filter_func = lambda x: x.lower() in self.mode.lower()
+        self.filter_func = lambda x: x in self.mode
         
         # load csv
         csv_path = self.root_folder / 'processing_status.csv'
@@ -240,6 +240,8 @@ class FamudyViewer(object):
                 dpg.add_button(label="Button", callback=next_timestep, arrow=True, direction=dpg.mvDir_Right)
 
                 def set_timestep(sender, data):
+                    if self.selected_subject == '-' or self.selected_sequence == '-':
+                        return
                     if dpg.is_item_focused("text_mode"):
                         return
                     
@@ -265,6 +267,7 @@ class FamudyViewer(object):
             with dpg.group(horizontal=True):
                 def set_camera(sender, data):
                     self.selected_camera = data
+                    self.update_folder_tree(level='camera')
                     self.need_update = True
                 dpg.add_combo([], label="camera   ", height_mode=dpg.mvComboHeight_Large, callback=set_camera, tag='combo_camera')
 
@@ -303,6 +306,7 @@ class FamudyViewer(object):
             dpg.add_input_text(label="filter mode", default_value=self.mode, tag='text_mode', callback=set_mode)
             dpg.add_text("o: all timesteps (not processed)\n"
                          "x: all timesteps (processed)\n"
+                         "S: all timesteps (only the first frame processed)\n"
                          "s: single timestep\n"
                          "f: no FLAME param"
                         )
@@ -314,7 +318,9 @@ class FamudyViewer(object):
             def set_annotation(sender, data):
                 self.need_update = True
             with dpg.group(horizontal=True):
+                dpg.add_checkbox(label="landmarks (STAR)  ", callback=set_annotation, tag='checkbox_lmk_star', show=False, default_value=False)
                 dpg.add_checkbox(label="landmarks (PIPnet)", callback=set_annotation, tag='checkbox_lmk_pipnet', show=False, default_value=False)
+            with dpg.group(horizontal=True):
                 dpg.add_checkbox(label="landmarks (FA)    ", callback=set_annotation, tag='checkbox_lmk_fa', show=False, default_value=False)
             with dpg.group(horizontal=True):
                 dpg.add_checkbox(label="foreground        ", callback=set_annotation, tag='checkbox_fg', show=False, default_value=False)
@@ -408,14 +414,20 @@ class FamudyViewer(object):
         dpg.set_value("text_calibration", value="no calibration" if no_calibration else "")
     
     def update_annotations(self):
-        lmk_pipnet = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet'
-        if lmk_pipnet.exists():
+        lmk_star_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'STAR' / f"{self.selected_camera}.npz"
+        if lmk_star_path.exists():
+            dpg.configure_item('checkbox_lmk_star', show=True)
+        else:
+            dpg.configure_item('checkbox_lmk_star', show=False)
+
+        lmk_pipnet_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
+        if lmk_pipnet_path.exists():
             dpg.configure_item('checkbox_lmk_pipnet', show=True)
         else:
             dpg.configure_item('checkbox_lmk_pipnet', show=False)
 
-        lmk_fa = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment'
-        if lmk_fa.exists():
+        lmk_fa_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment' / f"{self.selected_camera}.npz"
+        if lmk_fa_path.exists():
             dpg.configure_item('checkbox_lmk_fa', show=True)
         else:
             dpg.configure_item('checkbox_lmk_fa', show=False)
@@ -435,7 +447,7 @@ class FamudyViewer(object):
             dpg.configure_item('collapsing_filter_regions', show=False)
 
     
-    def update_folder_tree(self, level=Literal['timestep', 'filetype', 'camera']):
+    def update_folder_tree(self, level=Optional[Literal['timestep', 'filetype', 'camera']]):
         if self.selected_sequence == '-' or self.selected_subject == '-':
             self.reset_folder_tree()
             return
@@ -487,15 +499,35 @@ class FamudyViewer(object):
                 # directly load as float32
                 img = self.load_image(path)
                 img = img.astype(np.float32) / 255
+            
+            if dpg.get_item_configuration("checkbox_lmk_star")['show'] and dpg.get_value("checkbox_lmk_star"):
+                npz_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'STAR' / f"{self.selected_camera}.npz"
+                npz = np.load(npz_path)
+                lmk_star = npz['face_landmark_2d']
+                bbox_star = npz['bounding_box']
+
+                color = (0, 255, 0)
+                for lmk in lmk_star[self.selected_timestep_idx]:
+                    x = int(lmk[0] * img.shape[1])
+                    y = int(lmk[1] * img.shape[0])
+                    cv2.circle(img, (x, y), 2, color, -1)
+
+                # x1, y1, x2, y2 = bbox_star[self.selected_timestep_idx][:4]
+                # x1 = int(x1 * img.shape[1])
+                # y1 = int(y1 * img.shape[0])
+                # x2 = int(x2 * img.shape[1])
+                # y2 = int(y2 * img.shape[0])
+                # cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
 
             if dpg.get_item_configuration("checkbox_lmk_pipnet")['show'] and dpg.get_value("checkbox_lmk_pipnet"):
                 npy_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
                 lmk_pipnet = np.load(npy_path)
 
+                color = (0, 0, 255)
                 for lmk in lmk_pipnet[self.selected_timestep_idx]:
                     x = int(lmk[0] * img.shape[1])
                     y = int(lmk[1] * img.shape[0])
-                    cv2.circle(img, (x, y), 2, (0, 255, 0), -1)
+                    cv2.circle(img, (x, y), 2, color, -1)
             
             if dpg.get_item_configuration("checkbox_lmk_fa")['show'] and dpg.get_value("checkbox_lmk_fa"):
                 npz_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment' / f"{self.selected_camera}.npz"
@@ -503,17 +535,18 @@ class FamudyViewer(object):
                 lmk_fa = npz['face_landmark_2d']
                 bbox_fa = npz['bounding_box']
 
+                color = (255, 0, 0)
                 for lmk in lmk_fa[self.selected_timestep_idx]:
                     x = int(lmk[0] * img.shape[1])
                     y = int(lmk[1] * img.shape[0])
-                    cv2.circle(img, (x, y), 2, (255, 0, 0), -1)
+                    cv2.circle(img, (x, y), 2, color, -1)
 
-                    x1, y1, x2, y2 = bbox_fa[self.selected_timestep_idx][:4]
-                    x1 = int(x1 * img.shape[1])
-                    y1 = int(y1 * img.shape[0])
-                    x2 = int(x2 * img.shape[1])
-                    y2 = int(y2 * img.shape[0])
-                    cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 1)
+                # x1, y1, x2, y2 = bbox_fa[self.selected_timestep_idx][:4]
+                # x1 = int(x1 * img.shape[1])
+                # y1 = int(y1 * img.shape[0])
+                # x2 = int(x2 * img.shape[1])
+                # y2 = int(y2 * img.shape[0])
+                # cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
             
             if dpg.get_item_configuration("checkbox_fg")['show'] and dpg.get_value("checkbox_fg"):
                 fg_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'alpha_map' / f'{self.selected_camera}.png'
