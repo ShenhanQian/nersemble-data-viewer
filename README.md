@@ -1,9 +1,9 @@
-# Famudy Viewer
+# NeRSemble Data Viewer
 
-A GUI program to inspect images in the Famudy dataset.
+A GUI program to inspect images in the NeRSemble dataset.
 
 <div>
-<image src="./screenshot.png" height=500px></image>
+<image src="./screenshot.png" height=800px></image>
 </div>
 
 ## Installation

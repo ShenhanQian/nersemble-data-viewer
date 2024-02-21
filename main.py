@@ -35,13 +35,13 @@ region2seg_class = {
 
 
 @dataclass
-class FamudyViewerConfig:
+class NersembleDataViewerConfig:
     root_folder: Path
     mode: str='XoS'
     width: int=1000
     height: int=1000
 
-class FamudyViewer(object):
+class NersembleDataViewer(object):
     def __init__(self, cfg):
         self.root_folder = cfg.root_folder
         self.mode = cfg.mode
@@ -377,7 +377,7 @@ class FamudyViewer(object):
     def run(self):
         self.reset_folder_tree(update_items=False)
         self.define_gui()
-        dpg.create_viewport(title='Famudy Viewer', width=self.width, height=self.height, resizable=True)
+        dpg.create_viewport(title='NersembleData Viewer', width=self.width, height=self.height, resizable=True)
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
@@ -584,6 +584,6 @@ class FamudyViewer(object):
 
 
 if __name__ == '__main__':
-    cfg = tyro.cli(FamudyViewerConfig)
-    app = FamudyViewer(cfg)
+    cfg = tyro.cli(NersembleDataViewerConfig)
+    app = NersembleDataViewer(cfg)
     app.run()
