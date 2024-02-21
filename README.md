@@ -1,6 +1,6 @@
 # NeRSemble Data Viewer
 
-A GUI program to inspect images in the NeRSemble dataset.
+A GUI program to inspect images in the [NeRSemble](https://tobias-kirschstein.github.io/nersemble/) dataset.
 
 <div>
 <image src="./screenshot.png" height=800px></image>
