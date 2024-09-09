@@ -54,7 +54,8 @@ class NersembleDataViewer(object):
         csv_path = self.root_folder / 'metadata_sequences.csv'
         self.data = pd.read_csv(csv_path, sep=',')
 
-        self.data.iloc[:, 0] = self.data.iloc[:, 0].map(lambda x: f'{x:03d}')
+        self.data[self.data.columns[0]] = self.data[self.data.columns[0]].astype(str)
+        self.data.iloc[:, 0] = self.data.iloc[:, 0].map(lambda x: f'{int(x):03d}')
         self.data.iloc[:, 0]
         self.data.set_index("ID", inplace=True)
 
@@ -112,7 +113,7 @@ class NersembleDataViewer(object):
                     if data == '-':
                         self.available_sequences = self.sequences
                     else:
-                        self.available_sequences = [sequence for sequence, v in self.data.loc[data].items()]
+                        self.available_sequences = [x for x in self.sequences if len(list((self.root_folder).glob(f"{self.selected_subject}/{x}/images*/"))) > 0]
                         
                         if self.selected_sequence not in self.available_sequences:
                             if len(self.available_sequences) > 0:
@@ -121,7 +122,6 @@ class NersembleDataViewer(object):
                                 self.selected_sequence == '-'
 
                     dpg.configure_item("combo_sequence", items=['-'] + self.available_sequences, default_value=self.selected_sequence)
-                    self.check_calibration()
                     self.update_folder_tree(level='sequence')
                     self.need_update = True
                 dpg.add_combo(['-'] + self.available_subjects, default_value=self.selected_subject, label="subject  ", height_mode=dpg.mvComboHeight_Large, callback=set_subject, tag='combo_subject')
@@ -159,7 +159,7 @@ class NersembleDataViewer(object):
                     if data == '-':
                         self.available_subjects = self.subjects
                     else:
-                        self.available_subjects = [subject for subject, v in self.data.loc[:, data].items()]
+                        self.available_subjects = [x for x in self.subjects if len(list((self.root_folder / x).glob(f"{self.selected_sequence}/images*/"))) > 0]
 
                         if self.selected_subject not in self.available_subjects:
                             if len(self.available_subjects) > 0:
@@ -276,8 +276,6 @@ class NersembleDataViewer(object):
                     dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
                     set_timestep_slider(None, self.selected_timestep_idx)
             
-            dpg.add_text("", tag='text_calibration', color=[255, 0, 0])
-
             # annotations
             dpg.add_separator()
             def set_annotation(sender, data):
@@ -367,14 +365,6 @@ class NersembleDataViewer(object):
         else:
             raise ValueError("Invalid arguments")
     
-    def check_calibration(self):
-        no_calibration = False
-        if self.selected_subject != '-':
-            calibration_path = self.root_folder / 'camera_params' / self.selected_subject / 'camera_params.json'
-            if not calibration_path.exists():
-                no_calibration = True
-        dpg.set_value("text_calibration", value="no calibration" if no_calibration else "")
-    
     def update_annotations(self):
         lmk_star_path = self.root_folder / self.selected_subject / self.selected_sequence / 'landmark2d' / 'STAR' / f"{self.selected_camera.replace('cam_', '')}.npz"
         if lmk_star_path.exists():
@@ -436,7 +426,7 @@ class NersembleDataViewer(object):
             
         if update_camera:
             fnames = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_filetype)
-            self.cameras = ['_'.join(f.split('.')[0].split('_')[:-1]) for f in fnames]
+            self.cameras = sorted(set(['_'.join(f.split('.')[0].split('_')[:-1]) for f in fnames]))
             if self.selected_camera not in self.cameras:
                 self.selected_camera = self.cameras[0]
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
