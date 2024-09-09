@@ -3,3 +3,5 @@ numpy
 pillow
 pandas
 tyro
+opencv-python
+matplotlib

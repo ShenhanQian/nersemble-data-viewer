@@ -37,14 +37,12 @@ region2seg_class = {
 @dataclass
 class NersembleDataViewerConfig:
     root_folder: Path
-    mode: str='XoS'
     width: int=1000
     height: int=1000
 
 class NersembleDataViewer(object):
-    def __init__(self, cfg):
+    def __init__(self, cfg: NersembleDataViewerConfig):
         self.root_folder = cfg.root_folder
-        self.mode = cfg.mode
         self.width = cfg.width
         self.height = cfg.height
 
@@ -52,21 +50,22 @@ class NersembleDataViewer(object):
         self.height_nav = 400
         self.need_update = False
 
-        self.filter_func = lambda x: x in self.mode
-        
         # load csv
-        csv_path = self.root_folder / 'processing_status.csv'
-        self.data = pd.read_csv(csv_path, sep='\t', header=1)
+        csv_path = self.root_folder / 'metadata_sequences.csv'
+        self.data = pd.read_csv(csv_path, sep=',')
 
         self.data.iloc[:, 0] = self.data.iloc[:, 0].map(lambda x: f'{x:03d}')
+        self.data.iloc[:, 0]
         self.data.set_index("ID", inplace=True)
+
+        self.data = self.data.drop(self.data.columns[0:2], axis=1)  # drop 'wears_glasses' and 'BACKGROUND'
 
         # init variables
         self.subjects = self.data.index.tolist()
-        self.subjects = [subject for subject in self.subjects if len(list(filter(self.filter_func, self.data.loc[subject].values))) > 0]
+        self.subjects = [x for x in self.subjects if len(list((self.root_folder / x).glob(f"*/images*/"))) > 0]
 
         self.sequences = self.data.columns.tolist()
-        self.sequences = [sequence for sequence in self.sequences if len(list(filter(self.filter_func, self.data.loc[:, sequence].values))) > 0]
+        self.sequences = [x for x in self.sequences if len(list((self.root_folder).glob(f"*/{x}/images*/"))) > 0]
 
         self.reset_subject_sequence(update_items=False)
 
@@ -81,17 +80,17 @@ class NersembleDataViewer(object):
             dpg.configure_item("combo_sequence", items=['-'] + self.available_sequences, default_value=self.selected_sequence)
 
     def reset_folder_tree(self, update_items=True):
+        self.filetypes = []
+        self.cameras = []
         self.timesteps = []
+        self.selected_filetype = ''
+        self.selected_camera = ''
         self.selected_timestep = ''
         self.selected_timestep_idx = 0
-        self.filetypes = []
-        self.selected_filetype = ''
-        self.cameras = []
-        self.selected_camera = ''
         if update_items:
-            dpg.configure_item("slider_timestep", default_value=self.selected_timestep_idx, max_value=0, min_value=0)
             dpg.configure_item("combo_filetype", items=self.filetypes, default_value=self.selected_filetype)
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
+            dpg.configure_item("slider_timestep", default_value=self.selected_timestep_idx, max_value=0, min_value=0)
 
     def define_gui(self):
         dpg.create_context()
@@ -113,7 +112,7 @@ class NersembleDataViewer(object):
                     if data == '-':
                         self.available_sequences = self.sequences
                     else:
-                        self.available_sequences = [sequence for sequence, v in self.data.loc[data].items() if self.filter_func(v)]
+                        self.available_sequences = [sequence for sequence, v in self.data.loc[data].items()]
                         
                         if self.selected_sequence not in self.available_sequences:
                             if len(self.available_sequences) > 0:
@@ -123,13 +122,11 @@ class NersembleDataViewer(object):
 
                     dpg.configure_item("combo_sequence", items=['-'] + self.available_sequences, default_value=self.selected_sequence)
                     self.check_calibration()
-                    self.update_folder_tree(level='timestep')
+                    self.update_folder_tree(level='sequence')
                     self.need_update = True
-                dpg.add_combo(['-'] + self.subjects, default_value=self.selected_subject, label="subject  ", height_mode=dpg.mvComboHeight_Large, callback=set_subject, tag='combo_subject')
+                dpg.add_combo(['-'] + self.available_subjects, default_value=self.selected_subject, label="subject  ", height_mode=dpg.mvComboHeight_Large, callback=set_subject, tag='combo_subject')
                 
                 def prev_subject(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
                     if self.selected_subject == '-':
                         self.selected_subject = self.available_subjects[-1]
                     else:
@@ -143,8 +140,6 @@ class NersembleDataViewer(object):
                 dpg.add_button(label="W", callback=prev_subject, width=19)
 
                 def next_subject(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
                     if self.selected_subject == '-':
                         self.selected_subject = self.available_subjects[0]
                     else:
@@ -164,7 +159,7 @@ class NersembleDataViewer(object):
                     if data == '-':
                         self.available_subjects = self.subjects
                     else:
-                        self.available_subjects = [subject for subject, v in self.data.loc[:, data].items() if self.filter_func(v)]
+                        self.available_subjects = [subject for subject, v in self.data.loc[:, data].items()]
 
                         if self.selected_subject not in self.available_subjects:
                             if len(self.available_subjects) > 0:
@@ -175,11 +170,9 @@ class NersembleDataViewer(object):
                     dpg.configure_item("combo_subject", items=['-'] + self.available_subjects, default_value=self.selected_subject)
                     self.update_folder_tree(level='timestep')
                     self.need_update = True
-                dpg.add_combo(['-'] + self.sequences, default_value=self.selected_sequence, label="sequence ", height_mode=dpg.mvComboHeight_Large, callback=set_sequence, tag='combo_sequence')
+                dpg.add_combo(['-'] + self.available_sequences, default_value=self.selected_sequence, label="sequence ", height_mode=dpg.mvComboHeight_Large, callback=set_sequence, tag='combo_sequence')
 
                 def prev_sequence(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
                     if self.selected_sequence == '-':
                         self.selected_sequence = self.available_sequences[-1]
                     else:
@@ -193,8 +186,6 @@ class NersembleDataViewer(object):
                 dpg.add_button(label="A", callback=prev_sequence, width=19)
                 
                 def next_sequence(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
                     if self.selected_sequence == '-':
                         self.selected_sequence = self.available_sequences[0]
                     else:
@@ -206,55 +197,7 @@ class NersembleDataViewer(object):
                     dpg.set_value("combo_sequence", value=self.selected_sequence)
                     set_sequence(None, self.selected_sequence)
                 dpg.add_button(label="D", callback=next_sequence, width=19)
-
-
-            # timestep switch
-            with dpg.group(horizontal=True):
-                def set_timestep_slider(sender, data):
-                    self.selected_timestep_idx = data
-                    self.selected_timestep = self.timesteps[self.selected_timestep_idx]
-                    self.update_folder_tree(level='filetype')
-                    self.need_update = True
-                dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
-
-                def prev_timestep(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
-                    if len(self.timesteps) > 1:
-                        if self.selected_timestep_idx > 0:
-                            self.selected_timestep_idx -= 1
-                        self.selected_timestep = self.timesteps[self.selected_timestep_idx]
-                        dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
-                        set_timestep_slider(None, self.selected_timestep_idx)
-                dpg.add_button(label="Button", callback=prev_timestep, arrow=True, direction=dpg.mvDir_Left)
-
-                def next_timestep(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
-                    if len(self.timesteps) > 1:
-                        if self.selected_timestep_idx < len(self.timesteps)-1:
-                            self.selected_timestep_idx += 1
-                        self.selected_timestep = self.timesteps[self.selected_timestep_idx]
-                        dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
-                        set_timestep_slider(None, self.selected_timestep_idx)            
-                dpg.add_button(label="Button", callback=next_timestep, arrow=True, direction=dpg.mvDir_Right)
-
-                def set_timestep(sender, data):
-                    if self.selected_subject == '-' or self.selected_sequence == '-':
-                        return
-                    if dpg.is_item_focused("text_mode"):
-                        return
-                    
-                    if sender == 'mvKey_Home':
-                        self.selected_timestep_idx = 0
-                    elif sender == 'mvKey_End':
-                        if len(self.timesteps) > 0:
-                            self.selected_timestep_idx = len(self.timesteps)-1
-                    self.selected_timestep = self.timesteps[self.selected_timestep_idx]
-                    dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
-                    set_timestep_slider(None, self.selected_timestep_idx)       
-
-
+            
             # filetype switch
             def set_filetype(sender, data):
                 self.selected_filetype = data
@@ -272,8 +215,6 @@ class NersembleDataViewer(object):
                 dpg.add_combo([], label="camera   ", height_mode=dpg.mvComboHeight_Large, callback=set_camera, tag='combo_camera')
 
                 def prev_camera(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
                     if len(self.cameras) > 0:
                         idx = self.cameras.index(self.selected_camera)
                         if idx > 0:
@@ -285,8 +226,6 @@ class NersembleDataViewer(object):
                 dpg.add_button(label="", callback=prev_camera, arrow=True, direction=dpg.mvDir_Up)
 
                 def next_camera(sender, data):
-                    if dpg.is_item_focused("text_mode"):
-                        return
                     if len(self.cameras) > 0:
                         idx = self.cameras.index(self.selected_camera)
                         if idx < len(self.cameras)-1:
@@ -297,19 +236,45 @@ class NersembleDataViewer(object):
                         set_camera(None, self.selected_camera)
                 dpg.add_button(label="Button", callback=next_camera, arrow=True, direction=dpg.mvDir_Down)
 
-            # filter mode
-            def set_mode(sender, data):
-                self.mode = data
-                self.reset_subject_sequence()
-                self.update_folder_tree()
-                self.update_viewer()
-            dpg.add_input_text(label="filter mode", default_value=self.mode, tag='text_mode', callback=set_mode)
-            dpg.add_text("o: all timesteps (not processed)\n"
-                         "x: all timesteps (processed)\n"
-                         "S: all timesteps (only the first frame processed)\n"
-                         "s: single timestep\n"
-                         "f: no FLAME param"
-                        )
+            # timestep switch
+            with dpg.group(horizontal=True):
+                def set_timestep_slider(sender, data):
+                    self.selected_timestep_idx = data
+                    self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                    self.update_folder_tree(level='filetype')
+                    self.need_update = True
+                dpg.add_slider_int(label="time step", max_value=len(self.timesteps), callback=set_timestep_slider, tag='slider_timestep')
+
+                def prev_timestep(sender, data):
+                    if len(self.timesteps) > 1:
+                        if self.selected_timestep_idx > 0:
+                            self.selected_timestep_idx -= 1
+                        self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                        dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
+                        set_timestep_slider(None, self.selected_timestep_idx)
+                dpg.add_button(label="Button", callback=prev_timestep, arrow=True, direction=dpg.mvDir_Left)
+
+                def next_timestep(sender, data):
+                    if len(self.timesteps) > 1:
+                        if self.selected_timestep_idx < len(self.timesteps)-1:
+                            self.selected_timestep_idx += 1
+                        self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                        dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
+                        set_timestep_slider(None, self.selected_timestep_idx)            
+                dpg.add_button(label="Button", callback=next_timestep, arrow=True, direction=dpg.mvDir_Right)
+
+                def set_timestep(sender, data):
+                    if self.selected_subject == '-' or self.selected_sequence == '-':
+                        return
+                    
+                    if sender == 'mvKey_Home':
+                        self.selected_timestep_idx = 0
+                    elif sender == 'mvKey_End':
+                        if len(self.timesteps) > 0:
+                            self.selected_timestep_idx = len(self.timesteps)-1
+                    self.selected_timestep = self.timesteps[self.selected_timestep_idx]
+                    dpg.set_value("slider_timestep", value=self.selected_timestep_idx)
+                    set_timestep_slider(None, self.selected_timestep_idx)
             
             dpg.add_text("", tag='text_calibration', color=[255, 0, 0])
 
@@ -338,7 +303,6 @@ class NersembleDataViewer(object):
 
                 for i, region in enumerate(region2seg_class.keys()):
                     dpg.add_checkbox(label=f'{region:6s}', callback=set_region, tag=f'checkbox_{region}', show=True, default_value=True, parent=f'filter_region_group_{i // n_cols}')
-
 
         
         # key press handlers
@@ -393,52 +357,50 @@ class NersembleDataViewer(object):
             dpg.render_dearpygui_frame()
         dpg.destroy_context()
     
-    def iterdir(self, subject=None, sequence=None, timestep=None, filetype=None):
+    def iterdir(self, subject=None, sequence=None, filetype=None):
         if filetype is not None:
-            return [x.name for x in (self.root_folder / subject / 'sequences' / sequence / 'timesteps' / timestep / filetype).iterdir()]
-        elif timestep is not None:
-            return [x.name for x in (self.root_folder / subject / 'sequences' / sequence / 'timesteps' / timestep).iterdir()]
+            return [x.name for x in (self.root_folder / subject / sequence / filetype).iterdir()]
         elif sequence is not None:
-            return [x.name for x in (self.root_folder / subject / 'sequences' / sequence / 'timesteps').iterdir()]
+            return [x.name for x in (self.root_folder / subject / sequence).iterdir() if x.is_dir()]
         elif subject is not None:
-            return [x.name for x in (self.root_folder / subject / 'sequences').iterdir()]
+            return [x.name for x in (self.root_folder / subject).iterdir()]
         else:
             raise ValueError("Invalid arguments")
     
     def check_calibration(self):
         no_calibration = False
         if self.selected_subject != '-':
-            calibration_path = self.root_folder / self.selected_subject / 'calibration' / 'calibration_result.json'
+            calibration_path = self.root_folder / 'camera_params' / self.selected_subject / 'camera_params.json'
             if not calibration_path.exists():
                 no_calibration = True
         dpg.set_value("text_calibration", value="no calibration" if no_calibration else "")
     
     def update_annotations(self):
-        lmk_star_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'STAR' / f"{self.selected_camera}.npz"
+        lmk_star_path = self.root_folder / self.selected_subject / self.selected_sequence / 'annotations' / 'landmarks2D' / 'STAR' / f"{self.selected_camera}.npz"
         if lmk_star_path.exists():
             dpg.configure_item('checkbox_lmk_star', show=True)
         else:
             dpg.configure_item('checkbox_lmk_star', show=False)
 
-        lmk_pipnet_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
+        lmk_pipnet_path = self.root_folder / self.selected_subject / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
         if lmk_pipnet_path.exists():
             dpg.configure_item('checkbox_lmk_pipnet', show=True)
         else:
             dpg.configure_item('checkbox_lmk_pipnet', show=False)
 
-        lmk_fa_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment' / f"{self.selected_camera}.npz"
+        lmk_fa_path = self.root_folder / self.selected_subject / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment' / f"{self.selected_camera}.npz"
         if lmk_fa_path.exists():
             dpg.configure_item('checkbox_lmk_fa', show=True)
         else:
             dpg.configure_item('checkbox_lmk_fa', show=False)
         
-        fg = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'alpha_map'
+        fg = self.root_folder / self.selected_subject / self.selected_sequence / self.selected_timestep / 'alpha_map'
         if fg.exists():
             dpg.configure_item('checkbox_fg', show=True)
         else:
             dpg.configure_item('checkbox_fg', show=False)
         
-        seg = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'bisenet_segmentation_masks'
+        seg = self.root_folder / self.selected_subject / self.selected_sequence / self.selected_timestep / 'bisenet_segmentation_masks'
         if seg.exists():
             dpg.configure_item('checkbox_seg', show=True)
             dpg.configure_item('collapsing_filter_regions', show=True)
@@ -446,43 +408,55 @@ class NersembleDataViewer(object):
             dpg.configure_item('checkbox_seg', show=False)
             dpg.configure_item('collapsing_filter_regions', show=False)
 
-    
-    def update_folder_tree(self, level=Optional[Literal['timestep', 'filetype', 'camera']]):
+    def update_folder_tree(self, level=Optional[Literal['sequence', 'filetype', 'camera', 'timestep']]):
         if self.selected_sequence == '-' or self.selected_subject == '-':
             self.reset_folder_tree()
             return
         
-        update_time_step = level in ['timestep']
-        update_filetype = level in ['timestep', 'filetype']
-        update_camera = level in ['timestep', 'filetype', 'camera']
+        update_sequence = level in ['sequence']
+        update_filetype = level in ['sequence', 'filetype']
+        update_camera = level in ['sequence', 'filetype', 'camera']
+        update_timestep = level in ['sequence', 'filetype', 'camera', 'timestep']
 
-        if update_time_step:
-            self.timesteps = sorted(self.iterdir(self.selected_subject, self.selected_sequence))
-            if self.selected_timestep not in self.timesteps:
-                self.selected_timestep = self.timesteps[0]
-            self.selected_timestep_idx = self.timesteps.index(self.selected_timestep)
-            dpg.configure_item("slider_timestep", max_value=len(self.timesteps)-1, default_value=self.selected_timestep_idx)
+        if update_sequence:
+            self.available_sequences = [
+                x for x in self.iterdir(self.selected_subject) \
+                    if len(list((self.root_folder / self.selected_subject).glob(f'{x}/{self.selected_filetype}*/'))) > 0
+            ]
+            if self.selected_sequence not in self.available_sequences:
+                self.selected_sequence = self.available_sequences[0]
+            dpg.configure_item("combo_sequence", items=self.available_sequences, default_value=self.selected_sequence)
 
         if update_filetype:
-            self.filetypes = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep)
+            self.filetypes = self.iterdir(self.selected_subject, self.selected_sequence)
             self.filetypes_images = sorted([x for x in self.filetypes if 'image' in x], reverse=True)
             if self.selected_filetype not in self.filetypes:
                 self.selected_filetype = self.filetypes_images[0] if len(self.filetypes_images) > 0 else self.filetypes[0]
             dpg.configure_item("combo_filetype", items=self.filetypes, default_value=self.selected_filetype)
-
+            
         if update_camera:
-            self.cameras = [f.split('.')[0] for f in self.iterdir(self.selected_subject, self.selected_sequence, self.selected_timestep, self.selected_filetype)]
+            fnames = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_filetype)
+            self.cameras = ['_'.join(f.split('.')[0].split('_')[:-1]) for f in fnames]
             if self.selected_camera not in self.cameras:
                 self.selected_camera = self.cameras[0]
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
+
+        if update_timestep:
+            fnames = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_filetype)
+            self.timesteps = sorted(set([f.split('.')[0].split('_')[-1] for f in fnames]))
+            if self.selected_timestep not in self.timesteps:
+                self.selected_timestep = self.timesteps[0]
+            self.selected_timestep_idx = self.timesteps.index(self.selected_timestep)
+            dpg.configure_item("slider_timestep", max_value=len(self.timesteps)-1, default_value=self.selected_timestep_idx)
         
         self.update_annotations()
 
     def update_viewer(self):
         if self.selected_sequence != '-' and self.selected_subject != '-':
             
-            path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / self.selected_filetype
-            path = glob.glob(f'{str(path)}/*{self.selected_camera}*')
+            path = self.root_folder / self.selected_subject / self.selected_sequence / self.selected_filetype
+            path = glob.glob(f'{str(path)}/{self.selected_camera}_{self.selected_timestep}*')
+            print(path)
             if len(path) == 0:
                 return
             
@@ -501,7 +475,7 @@ class NersembleDataViewer(object):
                 img = img.astype(np.float32) / 255
             
             if dpg.get_item_configuration("checkbox_lmk_star")['show'] and dpg.get_value("checkbox_lmk_star"):
-                npz_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'STAR' / f"{self.selected_camera}.npz"
+                npz_path = self.root_folder / self.selected_subject / self.selected_sequence / 'annotations' / 'landmarks2D' / 'STAR' / f"{self.selected_camera}.npz"
                 npz = np.load(npz_path)
                 lmk_star = npz['face_landmark_2d']
                 bbox_star = npz['bounding_box']
@@ -520,7 +494,7 @@ class NersembleDataViewer(object):
                 # cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
 
             if dpg.get_item_configuration("checkbox_lmk_pipnet")['show'] and dpg.get_value("checkbox_lmk_pipnet"):
-                npy_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
+                npy_path = self.root_folder / self.selected_subject / self.selected_sequence / 'annotations' / 'landmarks2D' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
                 lmk_pipnet = np.load(npy_path)
 
                 color = (0, 0, 255)
@@ -530,7 +504,7 @@ class NersembleDataViewer(object):
                     cv2.circle(img, (x, y), 2, color, -1)
             
             if dpg.get_item_configuration("checkbox_lmk_fa")['show'] and dpg.get_value("checkbox_lmk_fa"):
-                npz_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment' / f"{self.selected_camera}.npz"
+                npz_path = self.root_folder / self.selected_subject / self.selected_sequence / 'annotations' / 'landmarks2D' / 'face-alignment' / f"{self.selected_camera}.npz"
                 npz = np.load(npz_path)
                 lmk_fa = npz['face_landmark_2d']
                 bbox_fa = npz['bounding_box']
@@ -549,19 +523,19 @@ class NersembleDataViewer(object):
                 # cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
             
             if dpg.get_item_configuration("checkbox_fg")['show'] and dpg.get_value("checkbox_fg"):
-                fg_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'alpha_map' / f'{self.selected_camera}.png'
+                fg_path = self.root_folder / self.selected_subject / self.selected_sequence / self.selected_timestep / 'alpha_map' / f'{self.selected_camera}.png'
                 fg_alpha = self.load_image(fg_path).astype(np.float32)[..., :3] / 255
                 img = img * (fg_alpha) + np.ones_like(img) * (1 - fg_alpha)
             
             if dpg.get_item_configuration("checkbox_seg")['show'] and dpg.get_value("checkbox_seg"):
-                seg_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'bisenet_segmentation_masks' / f'segmentation_{self.selected_camera}.png'
+                seg_path = self.root_folder / self.selected_subject / self.selected_sequence / self.selected_timestep / 'bisenet_segmentation_masks' / f'segmentation_{self.selected_camera}.png'
                 seg = self.load_image(seg_path, Image.NEAREST)
                 cm = plt.get_cmap('tab20c')
                 seg = cm(seg[:, :, 0])[:, :, :3].astype(np.float32)
                 img = img * 0.5 + seg * 0.5
             
             if dpg.get_item_configuration("collapsing_filter_regions")['show']:
-                seg_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'timesteps' / self.selected_timestep / 'bisenet_segmentation_masks' / f'segmentation_{self.selected_camera}.png'
+                seg_path = self.root_folder / self.selected_subject / self.selected_sequence / self.selected_timestep / 'bisenet_segmentation_masks' / f'segmentation_{self.selected_camera}.png'
                 seg = self.load_image(seg_path, Image.NEAREST)
                 for region, seg_class in region2seg_class.items():
                     if not dpg.get_value(f"checkbox_{region}"):
