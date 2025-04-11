@@ -2,6 +2,9 @@
 
 A GUI program to inspect images in the [NeRSemble](https://tobias-kirschstein.github.io/nersemble/) dataset.
 
+> [!WARNING]
+> This program was developed for NeRSemble Dataset V1. The expected folder structure is not compatible with NeRSemble Dataset V2.
+
 <div align="center">
         <image src="./screenshot.png" height=800px></image>
 </div>
