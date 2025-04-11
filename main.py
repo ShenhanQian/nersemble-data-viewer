@@ -63,10 +63,10 @@ class NersembleDataViewer(object):
 
         # init variables
         self.subjects = self.data.index.tolist()
-        self.subjects = [x for x in self.subjects if len(list((self.root_folder / x).glob(f"*/images*/"))) > 0]
+        self.subjects = [x for x in self.subjects if len(list((self.root_folder / x).glob(f"sequences/*/images*/*.jpg"))) > 0]
 
         self.sequences = self.data.columns.tolist()
-        self.sequences = [x for x in self.sequences if len(list((self.root_folder).glob(f"*/{x}/images*/"))) > 0]
+        self.sequences = [x for x in self.sequences if len(list((self.root_folder).glob(f"*/sequences/{x}/images*/*.jpg"))) > 0]
 
         self.reset_subject_sequence(update_items=False)
 
@@ -113,7 +113,7 @@ class NersembleDataViewer(object):
                     if data == '-':
                         self.available_sequences = self.sequences
                     else:
-                        self.available_sequences = [x for x in self.sequences if len(list((self.root_folder).glob(f"{self.selected_subject}/{x}/images*/"))) > 0]
+                        self.available_sequences = [x for x in self.sequences if len(list((self.root_folder).glob(f"{self.selected_subject}/sequences/{x}/images*/"))) > 0]
                         
                         if self.selected_sequence not in self.available_sequences:
                             if len(self.available_sequences) > 0:
@@ -159,7 +159,7 @@ class NersembleDataViewer(object):
                     if data == '-':
                         self.available_subjects = self.subjects
                     else:
-                        self.available_subjects = [x for x in self.subjects if len(list((self.root_folder / x).glob(f"{self.selected_sequence}/images*/"))) > 0]
+                        self.available_subjects = [x for x in self.subjects if len(list((self.root_folder / x).glob(f"sequences/{self.selected_sequence}/images*/"))) > 0]
 
                         if self.selected_subject not in self.available_subjects:
                             if len(self.available_subjects) > 0:
@@ -168,7 +168,7 @@ class NersembleDataViewer(object):
                                 self.selected_subject == '-'
                     
                     dpg.configure_item("combo_subject", items=['-'] + self.available_subjects, default_value=self.selected_subject)
-                    self.update_folder_tree(level='timestep')
+                    self.update_folder_tree(level='filetype')
                     self.need_update = True
                 dpg.add_combo(['-'] + self.available_sequences, default_value=self.selected_sequence, label="sequence ", height_mode=dpg.mvComboHeight_Large, callback=set_sequence, tag='combo_sequence')
 
@@ -357,40 +357,40 @@ class NersembleDataViewer(object):
     
     def iterdir(self, subject=None, sequence=None, filetype=None):
         if filetype is not None:
-            return [x.name for x in (self.root_folder / subject / sequence / filetype).iterdir()]
+            return [x.name for x in (self.root_folder / subject / 'sequences' / sequence / filetype).iterdir()]
         elif sequence is not None:
-            return [x.name for x in (self.root_folder / subject / sequence).iterdir() if x.is_dir()]
+            return [x.name for x in (self.root_folder / subject / 'sequences' / sequence).iterdir() if x.is_dir()]
         elif subject is not None:
-            return [x.name for x in (self.root_folder / subject).iterdir()]
+            return [x.name for x in (self.root_folder / subject / 'sequences').iterdir()]
         else:
             raise ValueError("Invalid arguments")
     
     def update_annotations(self):
-        lmk_star_path = self.root_folder / self.selected_subject / self.selected_sequence / 'landmark2d' / 'STAR' / f"{self.selected_camera.replace('cam_', '')}.npz"
+        lmk_star_path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / 'landmark2d' / 'STAR' / f"{self.selected_camera.replace('cam_', '')}.npz"
         if lmk_star_path.exists():
             dpg.configure_item('checkbox_lmk_star', show=True)
         else:
             dpg.configure_item('checkbox_lmk_star', show=False)
 
-        lmk_pipnet_path = self.root_folder / self.selected_subject / self.selected_sequence / 'landmark2d' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
+        lmk_pipnet_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'landmark2d' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
         if lmk_pipnet_path.exists():
             dpg.configure_item('checkbox_lmk_pipnet', show=True)
         else:
             dpg.configure_item('checkbox_lmk_pipnet', show=False)
 
-        lmk_fa_path = self.root_folder / self.selected_subject / self.selected_sequence / 'landmark2d' / 'face-alignment' / f"{self.selected_camera.replace('cam_', '')}.npz"
+        lmk_fa_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'landmark2d' / 'face-alignment' / f"{self.selected_camera.replace('cam_', '')}.npz"
         if lmk_fa_path.exists():
             dpg.configure_item('checkbox_lmk_fa', show=True)
         else:
             dpg.configure_item('checkbox_lmk_fa', show=False)
         
-        fg = self.root_folder / self.selected_subject / self.selected_sequence / 'alpha_maps' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
+        fg = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'alpha_maps' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
         if fg.exists():
             dpg.configure_item('checkbox_fg', show=True)
         else:
             dpg.configure_item('checkbox_fg', show=False)
         
-        seg = self.root_folder / self.selected_subject / self.selected_sequence / 'bisenet_segmentation_masks' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
+        seg = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'bisenet_segmentation_masks' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
         if seg.exists():
             dpg.configure_item('checkbox_seg', show=True)
             dpg.configure_item('collapsing_filter_regions', show=True)
@@ -411,7 +411,7 @@ class NersembleDataViewer(object):
         if update_sequence:
             self.available_sequences = [
                 x for x in self.iterdir(self.selected_subject) \
-                    if len(list((self.root_folder / self.selected_subject).glob(f'{x}/{self.selected_filetype}*/'))) > 0
+                    if len(list((self.root_folder / self.selected_subject).glob(f'sequences/{x}/images/*.jpg'))) > 0
             ]
             if self.selected_sequence not in self.available_sequences:
                 self.selected_sequence = self.available_sequences[0]
@@ -426,7 +426,7 @@ class NersembleDataViewer(object):
             
         if update_camera:
             fnames = self.iterdir(self.selected_subject, self.selected_sequence, self.selected_filetype)
-            self.cameras = sorted(set(['_'.join(f.split('.')[0].split('_')[:-1]) for f in fnames]))
+            self.cameras = sorted(set(['_'.join(f.split('.')[0].split('_')[:-1]) for f in fnames if '.mp4' not in f]))
             if self.selected_camera not in self.cameras:
                 self.selected_camera = self.cameras[0]
             dpg.configure_item("combo_camera", items=self.cameras, default_value=self.selected_camera)
@@ -444,7 +444,7 @@ class NersembleDataViewer(object):
     def update_viewer(self):
         if self.selected_sequence != '-' and self.selected_subject != '-':
             
-            path = self.root_folder / self.selected_subject / self.selected_sequence / self.selected_filetype
+            path = self.root_folder / self.selected_subject / 'sequences' / self.selected_sequence / self.selected_filetype
             path = glob.glob(f'{str(path)}/{self.selected_camera}_{self.selected_timestep}*')
             if len(path) == 0:
                 return
@@ -464,7 +464,7 @@ class NersembleDataViewer(object):
                 img = img.astype(np.float32) / 255
             
             if dpg.get_item_configuration("checkbox_lmk_star")['show'] and dpg.get_value("checkbox_lmk_star"):
-                npz_path = self.root_folder / self.selected_subject / self.selected_sequence / 'landmark2d' / 'STAR' / f"{self.selected_camera.replace('cam_', '')}.npz"
+                npz_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'landmark2d' / 'STAR' / f"{self.selected_camera.replace('cam_', '')}.npz"
                 npz = np.load(npz_path)
                 lmk_star = npz['face_landmark_2d']
                 bbox_star = npz['bounding_box']
@@ -483,7 +483,7 @@ class NersembleDataViewer(object):
                 # cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
 
             if dpg.get_item_configuration("checkbox_lmk_pipnet")['show'] and dpg.get_value("checkbox_lmk_pipnet"):
-                npy_path = self.root_folder / self.selected_subject / self.selected_sequence / 'landmark2d' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
+                npy_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'landmark2d' / 'PIPnet' / f"{self.selected_camera.replace('cam_', '')}.npy"
                 lmk_pipnet = np.load(npy_path)
 
                 color = (0, 0, 255)
@@ -493,7 +493,7 @@ class NersembleDataViewer(object):
                     cv2.circle(img, (x, y), 2, color, -1)
             
             if dpg.get_item_configuration("checkbox_lmk_fa")['show'] and dpg.get_value("checkbox_lmk_fa"):
-                npz_path = self.root_folder / self.selected_subject / self.selected_sequence / 'landmark2d' / 'face-alignment' / f"{self.selected_camera.replace('cam_', '')}.npz"
+                npz_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'landmark2d' / 'face-alignment' / f"{self.selected_camera.replace('cam_', '')}.npz"
                 npz = np.load(npz_path)
                 lmk_fa = npz['face_landmark_2d']
                 bbox_fa = npz['bounding_box']
@@ -512,19 +512,19 @@ class NersembleDataViewer(object):
                 # cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
             
             if dpg.get_item_configuration("checkbox_fg")['show'] and dpg.get_value("checkbox_fg"):
-                fg_path = self.root_folder / self.selected_subject / self.selected_sequence / 'alpha_maps' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
+                fg_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'alpha_maps' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
                 fg_alpha = self.load_image(fg_path).astype(np.float32)[..., :3] / 255
                 img = img * (fg_alpha) + np.ones_like(img) * (1 - fg_alpha)
             
             if dpg.get_item_configuration("checkbox_seg")['show'] and dpg.get_value("checkbox_seg"):
-                seg_path = self.root_folder / self.selected_subject / self.selected_sequence / 'bisenet_segmentation_masks' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
+                seg_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'bisenet_segmentation_masks' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
                 seg = self.load_image(seg_path, Image.NEAREST)
                 cm = plt.get_cmap('tab20c')
                 seg = cm(seg[:, :, 0])[:, :, :3].astype(np.float32)
                 img = img * 0.5 + seg * 0.5
             
             if dpg.get_item_configuration("collapsing_filter_regions")['show']:
-                seg_path = self.root_folder / self.selected_subject / self.selected_sequence / 'bisenet_segmentation_masks' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
+                seg_path = self.root_folder / self.selected_subject / 'sequences'/ self.selected_sequence / 'bisenet_segmentation_masks' / f'{self.selected_camera}_{self.selected_timestep}.jpg'
                 seg = self.load_image(seg_path, Image.NEAREST)
                 for region, seg_class in region2seg_class.items():
                     if not dpg.get_value(f"checkbox_{region}"):
